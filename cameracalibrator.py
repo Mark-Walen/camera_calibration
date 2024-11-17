@@ -33,6 +33,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 import sys
 import threading
+from typing import Optional, List
 
 import cv2
 from core.camera_calibration.camera_calibrator import OpenCVCalibrationNode, stop_event, is_running
@@ -40,9 +41,9 @@ from core.camera_calibration.calibrator import ChessboardInfo, Patterns
 
 
 class CaptureStereo(threading.Thread):
-    def __init__(self, queue_func, height=480, width=640):
+    def __init__(self, source=0, queue_func=None, height=480, width=640):
         threading.Thread.__init__(self)
-        self.cap = cv2.VideoCapture(1)
+        self.cap = cv2.VideoCapture(source)
         self.queue_func = queue_func
         self.height = height
         self.width = width
@@ -61,8 +62,6 @@ class CaptureStereo(threading.Thread):
         actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         print(f"Actual resolution set: {actual_width}x{actual_height}")
-
-        self.start()
 
     def run(self):
         try:
@@ -106,10 +105,16 @@ def optionsValidCharuco(options, parser):
     return True
 
 
-def main():
+def parse_args(argv):
     from optparse import OptionParser, OptionGroup
-    parser = OptionParser("%prog --size SIZE1 --square SQUARE1 [ --size SIZE2 --square SQUARE2 ]",
-                          description=None)
+    parser = OptionParser("%prog <mono|stereo> --size SIZE1 --square SQUARE1 [ --size SIZE2 --square SQUARE2 ]",
+                          description="Camera calibration utility for mono or stereo setups.")
+    parser.add_option("-S", "--sources", type=List, default=[0], action="append", help="Video sources to calibrate.")
+    parser.add_option("-w", "--width", type="int", default=640,
+                      help="Each video frame width (default: 640).")
+    parser.add_option("-h", "--height", type="int", default=480,
+                      help="Each video frame height (default: 480).")
+
     parser.add_option("-c", "--camera_name",
                       type="string", default='narrow_stereo',
                       help="name of the camera to appear in the calibration file")
@@ -119,8 +124,8 @@ def main():
     group.add_option("-p", "--pattern",
                      type="string", default="chessboard",
                      help="calibration pattern to detect - 'chessboard', 'circles', 'acircles', 'charuco'\n" +
-                     "  if 'charuco' is used, a --charuco_marker_size and --aruco_dict argument must be supplied\n" +
-                     "  with each --size and --square argument")
+                          "  if 'charuco' is used, a --charuco_marker_size and --aruco_dict argument must be supplied\n" +
+                          "  with each --size and --square argument")
     group.add_option(
         "-s", "--size", action="append", default=[],
         help="chessboard size as NxM, counting interior corners (e.g. a standard chessboard is 7x7)")
@@ -133,15 +138,12 @@ def main():
     group.add_option("-d", "--aruco_dict",
                      action="append", default=[],
                      help="ArUco marker dictionary; only valid with `-p charuco`; one of 'aruco_orig', '4x4_250', " +
-                     "'5x5_250', '6x6_250', '7x7_250'")
+                          "'5x5_250', '6x6_250', '7x7_250'")
     parser.add_option_group(group)
     group = OptionGroup(parser, "ROS Communication Options")
-    group.add_option(
-        "--approximate", type="float", default=0.0,
-        help="allow specified slop (in seconds) when pairing images from unsynchronized stereo cameras")
-    group.add_option("--no-service-check",
-                     action="store_false", dest="service_check", default=True,
-                     help="disable check for set_camera_info services at startup")
+    # group.add_option(
+    #     "--approximate", type="float", default=0.0,
+    #     help="allow specified slop (in seconds) when pairing images from unsynchronized stereo cameras")
     group.add_option("--queue-size",
                      type="int", default=1,
                      help="image queue size (default %default, set to 0 for unlimited)")
@@ -181,10 +183,20 @@ def main():
                      help="uses the CALIB_CB_FAST_CHECK flag for findChessboardCorners")
     group.add_option("--max-chessboard-speed", type="float", default=-1.0,
                      help="Do not use samples where the calibration pattern is moving faster \
-                     than this speed in px/frame. Set to eg. 0.5 for rolling shutter cameras.")
+                         than this speed in px/frame. Set to eg. 0.5 for rolling shutter cameras.")
 
     parser.add_option_group(group)
-    options, _ = parser.parse_args(sys.argv)
+    return parser, parser.parse_args(argv)
+
+
+def main():
+    args = sys.argv
+    if len(args) < 1:
+        print("Error: Mode ('mono' or 'stereo') must be specified.")
+        return
+
+    mode = args[0]
+    parser, (options, _) = parse_args(args[1:])
 
     if len(options.size) != len(options.square):
         parser.error("Number of size and square inputs must be the same!")
