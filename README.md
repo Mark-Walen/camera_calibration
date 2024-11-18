@@ -1,7 +1,3 @@
-Your updated version looks great! Here's a revised version with the acknowledgment for ROS included and the suggested adjustments to further refine the README:
-
----
-
 # Camera Calibration for Mono and Stereo
 
 This repository provides tools for camera calibration, supporting both mono and stereo camera setups. The goal of this project is to offer an easy-to-use, flexible camera calibration process that can be run anywhere, without the need for ROS dependencies.
