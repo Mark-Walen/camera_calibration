@@ -38,11 +38,93 @@ from typing import Optional, List
 import cv2
 from core.camera_calibration.camera_calibrator import OpenCVCalibrationNode, stop_event, is_running
 from core.camera_calibration.calibrator import ChessboardInfo, Patterns
+from core.logger import Logger
+
+logger = Logger("cameracalibrator")
 
 
 class CaptureStereo(threading.Thread):
-    def __init__(self, source=0, queue_func=None, height=480, width=640):
+    def __init__(self, source: List[int], queue_func=None, height=0, width=0):
         threading.Thread.__init__(self)
+        if source is None:
+            source = [0]
+            logger.warning("No video sources provided. Use default video source 0.")
+
+        self.cap0 = cv2.VideoCapture(source[0])
+        self.cap1 = cv2.VideoCapture(source[1]) if len(source) > 1 else None
+
+        self.queue_func = queue_func
+        self.height = height
+        self.width = width
+        self.daemon = True
+
+        if not self.cap0.isOpened():
+            logger.error("[Error]: Could not open video stream {}.".format(source[0]))
+            stop_event().set()
+            return
+
+        if self.cap1 and not self.cap1.isOpened():
+            logger.error("[Error]: Could not open video stream {}.".format(source[1]))
+            stop_event().set()
+            return
+
+        # Set resolution based on inputs
+        if self.cap1:   # Stereo cameras
+            if width > 0 and height > 0:
+                self.cap0.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                self.cap0.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+
+                self.cap1.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                self.cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        else:           # Single camera (stereo in one frame)
+            if width > 0 and height > 0:
+                self.cap0.set(cv2.CAP_PROP_FRAME_WIDTH, self.width * 2)
+                self.cap0.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            else:
+                self.height, self.width = 480, 640
+                self.cap0.set(cv2.CAP_PROP_FRAME_WIDTH, self.width * 2)
+                self.cap0.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+
+        logger.debug(
+            f"Camera 0 resolution: {self.cap0.get(cv2.CAP_PROP_FRAME_WIDTH)}x{self.cap0.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
+        if self.cap1:
+            logger.debug(
+                f"Camera 1 resolution: {self.cap1.get(cv2.CAP_PROP_FRAME_WIDTH)}x{self.cap1.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
+
+    def run(self):
+        try:
+            while is_running():
+                ret, frame = self.cap0.read()
+                if not ret:
+                    break
+
+                # Split the frame into left and right images
+                lframe = frame[:, :self.width]  # Left frame (left half of the image)
+                if self.cap1:
+                   ret, rframe = self.cap1.read()
+                   if not ret:
+                       break
+                else:
+                    rframe = frame[:, self.width:]  # Right frame (right half of the image)
+
+                if self.queue_func is not None:
+                    self.queue_func(lframe, rframe)
+
+                cv2.waitKey(1)
+            logger.info("Capture thread terminated.")
+        except Exception as e:
+            logger.error("capture_stereo: exception {}".format(e))
+        finally:
+            self.cap0.release()
+            if self.cap1:
+                self.cap1.release()
+            stop_event().set()
+
+
+class CaptureMono(threading.Thread):
+    def __init__(self, source: int, queue_func=None, height=0, width=0):
+        threading.Thread.__init__(self)
+
         self.cap = cv2.VideoCapture(source)
         self.queue_func = queue_func
         self.height = height
@@ -50,18 +132,13 @@ class CaptureStereo(threading.Thread):
         self.daemon = True
 
         if not self.cap.isOpened():
-            print("Error: Could not open video stream.")
+            logger.error("Error: Could not open video stream.")
             stop_event().set()
             return
 
-        # Try to set resolution
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width * 2)  # Try to set width to 1280
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # Set height to 480
-
-        # Print the actual resolution
-        actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        print(f"Actual resolution set: {actual_width}x{actual_height}")
+        if width >= 0 and height >= 0:
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
     def run(self):
         try:
@@ -69,21 +146,17 @@ class CaptureStereo(threading.Thread):
                 ret, frame = self.cap.read()
                 if not ret:
                     break
-                # Split the frame into left and right images
-                lframe = frame[:, :self.width]  # Left frame (left half of the image)
-                rframe = frame[:, self.width:]  # Right frame (right half of the image)
 
                 if self.queue_func is not None:
-                    self.queue_func(lframe, rframe)
+                    self.queue_func(frame)
 
                 cv2.waitKey(1)
-            print("Capture thread terminated.")
+            logger.info("Capture thread terminated.")
         except Exception as e:
-            print("capture_stereo: exception {}".format(e))
+            logger.error("capture_stereo: exception {}".format(e))
         finally:
             self.cap.release()
             stop_event().set()
-
 
 
 def optionsValidCharuco(options, parser):
@@ -109,10 +182,10 @@ def parse_args(argv):
     from optparse import OptionParser, OptionGroup
     parser = OptionParser("%prog <mono|stereo> --size SIZE1 --square SQUARE1 [ --size SIZE2 --square SQUARE2 ]",
                           description="Camera calibration utility for mono or stereo setups.")
-    parser.add_option("-S", "--sources", type=List, default=[0], action="append", help="Video sources to calibrate.")
+    parser.add_option("-S", "--sources", default=[0], action="append", help="Video sources to calibrate.")
     parser.add_option("-w", "--width", type="int", default=640,
                       help="Each video frame width (default: 640).")
-    parser.add_option("-h", "--height", type="int", default=480,
+    parser.add_option("-H", "--height", type="int", default=480,
                       help="Each video frame height (default: 480).")
 
     parser.add_option("-c", "--camera_name",
@@ -191,12 +264,12 @@ def parse_args(argv):
 
 def main():
     args = sys.argv
-    if len(args) < 1:
-        print("Error: Mode ('mono' or 'stereo') must be specified.")
+    if len(args) < 2:
+        logger.error("Mode ('mono' or 'stereo') must be specified.")
         return
 
-    mode = args[0]
-    parser, (options, _) = parse_args(args[1:])
+    mode = args[1]
+    parser, (options, _) = parse_args(args[2:])
 
     if len(options.size) != len(options.square):
         parser.error("Number of size and square inputs must be the same!")
@@ -279,12 +352,19 @@ def main():
         checkerboard_flags = cv2.CALIB_CB_FAST_CHECK
 
     try:
-        stereo_thread = CaptureStereo(None)
         node = OpenCVCalibrationNode(
             boards, calib_flags, fisheye_calib_flags,
             pattern, options.camera_name, checkerboard_flags=checkerboard_flags,
             max_chessboard_speed=options.max_chessboard_speed, queue_size=options.queue_size)
-        stereo_thread.queue_func = node.queue_stereo
+        if mode == "mono":
+            stereo_thread = CaptureMono(options.sources, node.queue_monocular)
+            stereo_thread.start()
+        elif mode == "stereo":
+            stereo_thread = CaptureStereo(options.sources, node.queue_stereo)
+            stereo_thread.start()
+        else:
+            print("Unsupported camera model: {}".format(mode))
+            return
         node.spin()
         # while True:
         #     time.sleep(0.01)
