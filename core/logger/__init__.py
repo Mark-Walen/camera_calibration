@@ -48,6 +48,9 @@ class Logger:
     def critical(self, msg):
         self.log(msg, logging.CRITICAL)
 
+    def set_level(self, level):
+        self.logger.setLevel(level)
+
 
 if __name__ == '__main__':
     import time
