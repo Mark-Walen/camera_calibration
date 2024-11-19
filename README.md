@@ -47,6 +47,10 @@ This project draws inspiration from the ROS2 camera calibration tool and acknowl
     ```shell
     python cameracalibrator.py stereo --source 0 --size 9x6 --square 0.015 --width 640 --height 480
     ```
+4. For a list of powerful options, run:
+   ```shell
+   python cameracalibrator.py -h
+   ```
 
 ## Removing ROS Dependencies
 
