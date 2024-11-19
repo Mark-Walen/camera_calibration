@@ -31,13 +31,16 @@
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
+import os
 import sys
 import threading
-from typing import Optional, List
+from typing import List
 
 import cv2
-from core.camera_calibration.camera_calibrator import OpenCVCalibrationNode, stop_event, is_running
+import tempfile
+
 from core.camera_calibration.calibrator import ChessboardInfo, Patterns
+from core.camera_calibration.camera_calibrator import OpenCVCalibrationNode, stop_event, is_running
 from core.logger import Logger
 
 logger = Logger("cameracalibrator")
@@ -158,6 +161,15 @@ class CaptureMono(threading.Thread):
             self.cap.release()
             stop_event().set()
 
+# Function to validate a path and fall back to default if not valid
+def get_valid_path(provided_path, default_path, label):
+    if provided_path and os.path.isdir(provided_path):
+        return provided_path
+    elif provided_path:
+        logger.warning(f"The provided {label} directory '{provided_path}' does not exist. "
+              f"Using default directory: '{default_path}'.")
+    return default_path
+
 
 def optionsValidCharuco(options, parser):
     """
@@ -257,6 +269,17 @@ def parse_args(argv):
     group.add_option("--max-chessboard-speed", type="float", default=-1.0,
                      help="Do not use samples where the calibration pattern is moving faster \
                          than this speed in px/frame. Set to eg. 0.5 for rolling shutter cameras.")
+    parser.add_option_group(group)
+
+    group = OptionGroup(parser, "Calibration Data Path Options")
+    group.add_option("--calibration-data-path", type= "string", default="",
+                     help="Path to calibration data directory. \
+                     Calibration data includes camera parameters and sampled image use to calibrate. \
+                     Default path is system temp directory.")
+    group.add_option("--cam-shot-path", type="string", default="",
+                     help="Path to cam shot image directory (Triggered by hotkey \"s\"). \
+                         Cam shot images will be use to calibration too. \
+                         Default path is system temp directory.")
 
     parser.add_option_group(group)
     return parser, parser.parse_args(argv)
@@ -351,9 +374,15 @@ def main():
     else:
         checkerboard_flags = cv2.CALIB_CB_FAST_CHECK
 
+    # System default temp directory
+    default_temp_dir = tempfile.gettempdir()
+    # Resolve paths
+    calibration_data_path = get_valid_path(options.calibration_data_path, default_temp_dir, "calibration data")
+    cam_shot_path = get_valid_path(options.cam_shot_path, default_temp_dir, "cam shot image")
+
     try:
         node = OpenCVCalibrationNode(
-            boards, calib_flags, fisheye_calib_flags,
+            boards, calibration_data_path, cam_shot_path, calib_flags, fisheye_calib_flags,
             pattern, options.camera_name, checkerboard_flags=checkerboard_flags,
             max_chessboard_speed=options.max_chessboard_speed, queue_size=options.queue_size)
         if mode == "mono":

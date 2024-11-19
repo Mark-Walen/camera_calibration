@@ -375,7 +375,8 @@ class Calibrator:
     Base class for calibration system
     """
 
-    def __init__(self, boards, flags=0, fisheye_flags=0, pattern=Patterns.Chessboard, name='',
+    def __init__(self, boards, calibration_data_path, cam_shot_path,
+                 flags=0, fisheye_flags=0, pattern=Patterns.Chessboard, name='',
                  checkerboard_flags=cv2.CALIB_CB_FAST_CHECK, max_chessboard_speed=-1.0):
         # Ordering the dimensions for the different detectors is actually a minefield...
         if pattern == Patterns.Chessboard:
@@ -394,6 +395,9 @@ class Calibrator:
         else:
             raise CalibrationException(
                 'pattern must be one of: Chessboard, Circles, ACircles, or ChArUco')
+
+        self._calibration_data_path = calibration_data_path
+        self._cam_shot_path = cam_shot_path
 
         # Set to true after we perform calibration
         self.calibrated = False
@@ -763,7 +767,7 @@ class Calibrator:
         return calmessage
 
     def do_save(self):
-        filename = '/tmp/calibrationdata.tar.gz'
+        filename = f'{self._calibration_data_path}/calibrationdata.tar.gz'
         tf = tarfile.open(filename, 'w:gz')
         self.do_tarfile_save(tf)  # Must be overridden in subclasses
         tf.close()

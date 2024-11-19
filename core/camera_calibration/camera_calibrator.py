@@ -69,6 +69,8 @@ class ConsumerThread(threading.Thread):
 class CalibrationNode:
     def __init__(self,
                  boards,
+                 calibration_data_path,
+                 cam_shot_path,
                  flags=0,
                  fisheye_flags=0,
                  pattern=Patterns.Chessboard,
@@ -79,6 +81,8 @@ class CalibrationNode:
 
         self._logger = Logger("Camera Calibration")
         self._boards = boards
+        self._calibration_data_path = calibration_data_path
+        self._cam_shot_path = cam_shot_path
         self._calib_flags = flags
         self._fisheye_calib_flags = fisheye_flags
         self._checkerboard_flags = checkerboard_flags
@@ -120,12 +124,12 @@ class CalibrationNode:
         if self.c is None:
             if self._camera_name:
                 self.c = MonoCalibrator(
-                    self._boards, self._calib_flags, self._fisheye_calib_flags, self._pattern,
+                    self._boards, self._calibration_data_path, self._cam_shot_path, self._calib_flags, self._fisheye_calib_flags, self._pattern,
                     name=self._camera_name, checkerboard_flags=self._checkerboard_flags,
                     max_chessboard_speed=self._max_chessboard_speed)
             else:
                 self.c = MonoCalibrator(
-                    self._boards, self._calib_flags, self._fisheye_calib_flags, self._pattern,
+                    self._boards, self._calibration_data_path, self._cam_shot_path, self._calib_flags, self._fisheye_calib_flags, self._pattern,
                     checkerboard_flags=self._checkerboard_flags,
                     max_chessboard_speed=self._max_chessboard_speed)
 
@@ -138,12 +142,12 @@ class CalibrationNode:
         if self.c is None:
             if self._camera_name:
                 self.c = StereoCalibrator(
-                    self._boards, self._calib_flags, self._fisheye_calib_flags, self._pattern,
+                    self._boards, self._calibration_data_path, self._cam_shot_path, self._calib_flags, self._fisheye_calib_flags, self._pattern,
                     name=self._camera_name, checkerboard_flags=self._checkerboard_flags,
                     max_chessboard_speed=self._max_chessboard_speed)
             else:
                 self.c = StereoCalibrator(
-                    self._boards, self._calib_flags, self._fisheye_calib_flags, self._pattern,
+                    self._boards, self._calibration_data_path, self._cam_shot_path, self._calib_flags, self._fisheye_calib_flags, self._pattern,
                     checkerboard_flags=self._checkerboard_flags,
                     max_chessboard_speed=self._max_chessboard_speed)
 
@@ -194,8 +198,8 @@ class OpenCVCalibrationNode(CalibrationNode):
                 else:
                     time.sleep(0.1)
                 k = cv2.waitKey(6) & 0xFF
-                if k in [27, ord('q')]:
-                    return
+                if k in [27, ord('q')] or cv2.getWindowProperty("display", cv2.WND_PROP_VISIBLE) < 1:
+                    break
                 elif k == ord('s') and self.image is not None:
                     self.screendump(self.image)
         except Exception as e:
@@ -274,10 +278,12 @@ class OpenCVCalibrationNode(CalibrationNode):
 
     def screendump(self, im):
         i = 0
-        while os.access("/tmp/dump%d.png" % i, os.R_OK):
+        _dump_png = f"{self._cam_shot_path}/dump0.png"
+        while os.access(_dump_png, os.R_OK):
             i += 1
-        cv2.imwrite("/tmp/dump%d.png" % i, im)
-        print("Saved screen dump to /tmp/dump%d.png" % i)
+            _dump_png = f"{self._cam_shot_path}/dump{i}.png"
+        cv2.imwrite(_dump_png, im)
+        print(f"Saved screen dump to {_dump_png}")
 
     def redraw_monocular(self, drawable):
         height = drawable.scrib.shape[0]

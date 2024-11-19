@@ -452,7 +452,7 @@ class StereoCalibrator(Calibrator):
         # Dump should only occur if user wants it
         if dump:
             pickle.dump((self.is_mono, self.size, self.good_corners),
-                        open("/tmp/camera_calibration_%08x.pickle" % random.getrandbits(32), "w"))
+                        open(f"{self._calibration_data_path}/camera_calibration_{random.getrandbits(32):%08x.pickle}", "w"))
         self.l.size = self.size
         self.r.size = self.size
         self.cal_fromcorners(self.good_corners)
