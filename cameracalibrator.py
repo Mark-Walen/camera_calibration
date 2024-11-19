@@ -277,9 +277,9 @@ def parse_args(argv):
                      Calibration data includes camera parameters and sampled image use to calibrate. \
                      Default path is system temp directory.")
     group.add_option("--cam-shot-path", type="string", default="",
-                     help="Path to cam shot image directory (Triggered by hotkey \"s\"). \
-                         Cam shot images will be use to calibration too. \
-                         Default path is system temp directory.")
+                     help="Path to cam shot image directory (Triggered by hotkey 's')."
+                         "Cam shot images will be use to calibration too."
+                         "Default path is system temp directory.")
 
     parser.add_option_group(group)
     return parser, parser.parse_args(argv)
@@ -380,19 +380,23 @@ def main():
     calibration_data_path = get_valid_path(options.calibration_data_path, default_temp_dir, "calibration data")
     cam_shot_path = get_valid_path(options.cam_shot_path, default_temp_dir, "cam shot image")
 
+    if mode == "-h" or mode == "--help":
+        parser.print_help()
+        exit(0)
+
     try:
         node = OpenCVCalibrationNode(
             boards, calibration_data_path, cam_shot_path, calib_flags, fisheye_calib_flags,
             pattern, options.camera_name, checkerboard_flags=checkerboard_flags,
             max_chessboard_speed=options.max_chessboard_speed, queue_size=options.queue_size)
         if mode == "mono":
-            stereo_thread = CaptureMono(options.sources, node.queue_monocular)
-            stereo_thread.start()
+            mono_thread = CaptureMono(options.sources, node.queue_monocular)
+            mono_thread.start()
         elif mode == "stereo":
             stereo_thread = CaptureStereo(options.sources, node.queue_stereo)
             stereo_thread.start()
         else:
-            print("Unsupported camera model: {}".format(mode))
+            logger.error(f"Unsupported camera model: {mode}. Please use 'mono' or 'stereo'.")
             return
         node.spin()
         # while True:
