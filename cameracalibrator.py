@@ -35,7 +35,7 @@ import os
 import sys
 import threading
 import time
-from typing import List
+from typing import List, Union
 
 import cv2
 import tempfile
@@ -48,7 +48,7 @@ logger = Logger("cameracalibrator")
 
 
 class CaptureStereo(threading.Thread):
-    def __init__(self, source: List[int], queue_func=None, height=0, width=0):
+    def __init__(self, source: List[Union[int, str]], queue_func=None, height=0, width=0):
         threading.Thread.__init__(self)
         if source is None:
             source = [0]
@@ -195,7 +195,7 @@ def parse_args(argv):
     from optparse import OptionParser, OptionGroup
     parser = OptionParser("%prog <mono|stereo> --size SIZE1 --square SQUARE1 [ --size SIZE2 --square SQUARE2 ]",
                           description="Camera calibration utility for mono or stereo setups.")
-    parser.add_option("-S", "--sources", default=[0], action="append", help="Video sources to calibrate.")
+    parser.add_option("-S", "--sources", default=[], action="append", help="Video sources to calibrate.")
     parser.add_option("-w", "--width", type="int", default=640,
                       help="Each video frame width (default: 640).")
     parser.add_option("-H", "--height", type="int", default=480,
