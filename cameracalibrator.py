@@ -390,10 +390,10 @@ def main():
             pattern, options.camera_name, checkerboard_flags=checkerboard_flags,
             max_chessboard_speed=options.max_chessboard_speed, queue_size=options.queue_size)
         if mode == "mono":
-            mono_thread = CaptureMono(options.sources, node.queue_monocular)
+            mono_thread = CaptureMono(options.sources, node.queue_monocular, height=options.height, width=options.width)
             mono_thread.start()
         elif mode == "stereo":
-            stereo_thread = CaptureStereo(options.sources, node.queue_stereo)
+            stereo_thread = CaptureStereo(options.sources, node.queue_stereo, height=options.height, width=options.width)
             stereo_thread.start()
         else:
             logger.error(f"Unsupported camera model: {mode}. Please use 'mono' or 'stereo'.")
