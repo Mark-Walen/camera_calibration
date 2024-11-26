@@ -62,6 +62,7 @@ class StereoDrawable(ImageDrawable):
         self.epierror = -1
         self.dim = -1
 
+
 # TODO Replicate MonoCalibrator improvements in stereo
 
 
@@ -84,6 +85,8 @@ class StereoCalibrator(Calibrator):
         super(StereoCalibrator, self).__init__(*args, **kwargs)
         self.l = MonoCalibrator(*args, **kwargs)
         self.r = MonoCalibrator(*args, **kwargs)
+        self.T = numpy.zeros((3, 1), dtype=numpy.float64)
+        self.R = numpy.eye(3, dtype=numpy.float64)
         # Collecting from two cameras in a horizontal stereo rig, can't get
         # full X range in the left camera.
         self.param_ranges[0] = 0.4
@@ -143,10 +146,21 @@ class StereoCalibrator(Calibrator):
 
         opts = self.mk_object_points(boards, True)
 
-        flags = cv2.CALIB_FIX_INTRINSIC
-
-        self.T = numpy.zeros((3, 1), dtype=numpy.float64)
-        self.R = numpy.eye(3, dtype=numpy.float64)
+        # flags = cv2.CALIB_FIX_INTRINSIC
+        flags = 0
+        # flags |= cv2.CALIB_FIX_ASPECT_RATIO
+        flags |= cv2.CALIB_USE_INTRINSIC_GUESS
+        # flags |= cv2.CALIB_SAME_FOCAL_LENGTH
+        # flags |= cv2.CALIB_ZERO_TANGENT_DIST
+        flags |= cv2.CALIB_RATIONAL_MODEL
+        # flags |= cv2.CALIB_FIX_K1
+        # flags |= cv2.CALIB_FIX_K2
+        # flags |= cv2.CALIB_FIX_K3
+        # flags |= cv2.CALIB_FIX_K4
+        # flags |= cv2.CALIB_FIX_K5
+        # flags |= cv2.CALIB_FIX_K6
+        stereo_calib_criteria = (cv2.TERM_CRITERIA_COUNT +
+                                cv2.TERM_CRITERIA_EPS, 100, 1e-5)
 
         if self.camera_model == CAMERA_MODEL.PINHOLE:
             print("stereo pinhole calibration...")
@@ -156,8 +170,9 @@ class StereoCalibrator(Calibrator):
                                                  self.r.intrinsics, self.r.distortion,
                                                  self.R,                            # R
                                                  self.T,                            # T
-                                                 criteria=(cv2.TERM_CRITERIA_EPS + \
-                                                           cv2.TERM_CRITERIA_MAX_ITER, 1, 1e-5),
+                                                 criteria=stereo_calib_criteria,
+                                                 # criteria=(cv2.TERM_CRITERIA_EPS + \
+                                                 #           cv2.TERM_CRITERIA_MAX_ITER, 1, 1e-5),
                                                  flags=flags)
             else:
                 ret_values = cv2.stereoCalibrate(opts, lipts, ripts,
@@ -166,8 +181,9 @@ class StereoCalibrator(Calibrator):
                                                  self.size,
                                                  self.R,                            # R
                                                  self.T,                            # T
-                                                 criteria=(cv2.TERM_CRITERIA_EPS + \
-                                                           cv2.TERM_CRITERIA_MAX_ITER, 1, 1e-5),
+                                                 # criteria=(cv2.TERM_CRITERIA_EPS + \
+                                                 #           cv2.TERM_CRITERIA_MAX_ITER, 1, 1e-5),
+                                                 criteria=stereo_calib_criteria,
                                                  flags=flags)
             print(f"Stereo RMS re-projection error: {ret_values[0]}")
         elif self.camera_model == CAMERA_MODEL.FISHEYE:
@@ -188,8 +204,8 @@ class StereoCalibrator(Calibrator):
                                             self.l.intrinsics, self.l.distortion,
                                             self.r.intrinsics, self.r.distortion,
                                             self.size,
-                                            self.R,                            # R
-                                            self.T,                            # T
+                                            self.R,  # R
+                                            self.T,  # T
                                             # 30, 1e-6
                                             criteria=(
                                                 cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 1, 1e-5),
@@ -347,8 +363,8 @@ class StereoCalibrator(Calibrator):
         cc = board.n_cols
         cr = board.n_rows
         lengths = (
-            [l2(pt3d[cc * r + 0], pt3d[cc * r + (cc - 1)]) / (cc - 1) for r in range(cr)] +
-            [l2(pt3d[c + 0], pt3d[c + (cc * (cr - 1))]) / (cr - 1) for c in range(cc)])
+                [l2(pt3d[cc * r + 0], pt3d[cc * r + (cc - 1)]) / (cc - 1) for r in range(cr)] +
+                [l2(pt3d[c + 0], pt3d[c + (cc * (cr - 1))]) / (cr - 1) for c in range(cc)])
         return sum(lengths) / len(lengths)
 
     def update_db(self, lgray, rgray, lcorners, rcorners, lids, rids, lboard):
@@ -452,7 +468,8 @@ class StereoCalibrator(Calibrator):
         # Dump should only occur if user wants it
         if dump:
             pickle.dump((self.is_mono, self.size, self.good_corners),
-                        open(f"{self._calibration_data_path}/camera_calibration_{random.getrandbits(32):%08x.pickle}", "w"))
+                        open(f"{self._calibration_data_path}/camera_calibration_{random.getrandbits(32):%08x.pickle}",
+                             "w"))
         self.l.size = self.size
         self.r.size = self.size
         self.cal_fromcorners(self.good_corners)
@@ -487,9 +504,9 @@ class StereoCalibrator(Calibrator):
         archive = tarfile.open(filename, 'r')
         names = archive.getnames()
         limages = [image_from_archive(archive, f) for f in names if (
-            'left' in f and (f.endswith('pgm') or f.endswith('png')))]
+                'left' in f and (f.endswith('pgm') or f.endswith('png')))]
         rimages = [image_from_archive(archive, f) for f in names if (
-            'right' in f and (f.endswith('pgm') or f.endswith('png')))]
+                'right' in f and (f.endswith('pgm') or f.endswith('png')))]
 
         if not len(limages) == len(rimages):
             raise CalibrationException(
