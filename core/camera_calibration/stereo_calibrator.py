@@ -485,10 +485,11 @@ class StereoCalibrator(Calibrator):
 
     def do_tarfile_calibration(self, filename):
         archive = tarfile.open(filename, 'r')
-        limages = [image_from_archive(archive, f) for f in archive.getnames() if (
-            f.startswith('left') and (f.endswith('pgm') or f.endswith('png')))]
-        rimages = [image_from_archive(archive, f) for f in archive.getnames() if (
-            f.startswith('right') and (f.endswith('pgm') or f.endswith('png')))]
+        names = archive.getnames()
+        limages = [image_from_archive(archive, f) for f in names if (
+            'left' in f and (f.endswith('pgm') or f.endswith('png')))]
+        rimages = [image_from_archive(archive, f) for f in names if (
+            'right' in f and (f.endswith('pgm') or f.endswith('png')))]
 
         if not len(limages) == len(rimages):
             raise CalibrationException(

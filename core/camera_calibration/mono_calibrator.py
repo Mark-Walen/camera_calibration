@@ -410,6 +410,6 @@ class MonoCalibrator(Calibrator):
         archive = tarfile.open(filename, 'r')
 
         limages = [image_from_archive(archive, f) for f in archive.getnames() if (
-            f.startswith('left') and (f.endswith('.pgm') or f.endswith('png')))]
+            'left' in f.startswith and (f.endswith('.pgm') or f.endswith('png')))]
 
         self.cal(limages)
