@@ -62,6 +62,7 @@ def cal_from_tarfile(
 
     calibrator.do_tarfile_calibration(tarname)
 
+    calibrator.report()
     print(calibrator.ost())
 
     if visualize:
@@ -72,7 +73,7 @@ def cal_from_tarfile(
         archive = tarfile.open(tarname, 'r')
         if mono:
             for f in archive.getnames():
-                if f.startswith('left') and (f.endswith('.pgm') or f.endswith('png')):
+                if 'left' in f and (f.endswith('.pgm') or f.endswith('png')):
                     filedata = archive.extractfile(f).read()
                     file_bytes = numpy.asarray(
                         bytearray(filedata), dtype=numpy.uint8)
@@ -85,11 +86,9 @@ def cal_from_tarfile(
                     if not display(f, vis):
                         break
         else:
-            limages = [f for f in archive.getnames() if (f.startswith(
-                'left') and (f.endswith('pgm') or f.endswith('png')))]
+            limages = [f for f in archive.getnames() if ('left' in f and (f.endswith('pgm') or f.endswith('png')))]
             limages.sort()
-            rimages = [f for f in archive.getnames() if (f.startswith(
-                'right') and (f.endswith('pgm') or f.endswith('png')))]
+            rimages = [f for f in archive.getnames() if ('right' in f and (f.endswith('pgm') or f.endswith('png')))]
             rimages.sort()
 
             if not len(limages) == len(rimages):
@@ -100,8 +99,8 @@ def cal_from_tarfile(
                 l = limages[i]
                 r = rimages[i]
 
-                if l.startswith('left') and (
-                        l.endswith('.pgm') or l.endswith('png')) and r.startswith('right') and (
+                if 'left' in l and (
+                        l.endswith('.pgm') or l.endswith('png')) and 'right' in r and (
                         r.endswith('.pgm') or r.endswith('png')):
                     # LEFT IMAGE
                     filedata = archive.extractfile(l).read()
