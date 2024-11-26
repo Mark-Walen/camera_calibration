@@ -34,6 +34,7 @@
 import os
 import sys
 import threading
+import time
 from typing import List
 
 import cv2
@@ -113,7 +114,7 @@ class CaptureStereo(threading.Thread):
                 if self.queue_func is not None:
                     self.queue_func(lframe, rframe)
 
-                cv2.waitKey(1)
+                time.sleep(0.01)
             logger.info("Capture thread terminated.")
         except Exception as e:
             logger.error("capture_stereo: exception {}".format(e))
@@ -153,7 +154,7 @@ class CaptureMono(threading.Thread):
                 if self.queue_func is not None:
                     self.queue_func(frame)
 
-                cv2.waitKey(1)
+                time.sleep(0.01)
             logger.info("Capture thread terminated.")
         except Exception as e:
             logger.error("capture_stereo: exception {}".format(e))
