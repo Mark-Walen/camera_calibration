@@ -195,13 +195,13 @@ class OpenCVCalibrationNode(CalibrationNode):
                 if self.queue_display.qsize() > 0:
                     self.image = self.queue_display.get()
                     cv2.imshow("display", self.image)
+                    k = cv2.waitKey(6) & 0xFF
+                    if k in [27, ord('q')] or cv2.getWindowProperty("display", cv2.WND_PROP_VISIBLE) < 1:
+                        break
+                    elif k == ord('s') and self.image is not None:
+                        self.screendump(self.image)
                 else:
                     time.sleep(0.1)
-                k = cv2.waitKey(6) & 0xFF
-                if k in [27, ord('q')] or cv2.getWindowProperty("display", cv2.WND_PROP_VISIBLE) < 1:
-                    break
-                elif k == ord('s') and self.image is not None:
-                    self.screendump(self.image)
         except Exception as e:
             self.get_logger().error(f'OpenCVCalibrationNode encountered an error: {e}')
         finally:
