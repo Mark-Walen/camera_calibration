@@ -50,7 +50,7 @@ logger = Logger("cameracalibrator")
 class CaptureStereo(threading.Thread):
     def __init__(self, source: List[Union[int, str]], queue_func=None, height=0, width=0):
         threading.Thread.__init__(self)
-        if source is None:
+        if not source:
             source = [0]
             logger.warning("No video sources provided. Use default video source 0.")
 
